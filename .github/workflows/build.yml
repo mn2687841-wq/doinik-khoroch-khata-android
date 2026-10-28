@@ -25,10 +25,9 @@ jobs:
       - name: Extract project
         run: |
           mkdir source
-          unzip -q ./*.zip -d source
+          unzip -q Doinik_Khoroch_Khata_Dark_Mode_Updated.zip -d source
           PROJECT_DIR="$(dirname "$(find source -name settings.gradle -type f -print -quit)")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
       - name: Fix Android print button
         run: |
           python3 - <<'PY'
