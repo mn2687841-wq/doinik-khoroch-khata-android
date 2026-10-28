@@ -1,0 +1,40 @@
+name: Build Daily Expense APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Extract project
+        run: |
+          mkdir source
+          unzip -q ./*.zip -d source
+          PROJECT_DIR="$(dirname "$(find source -name settings.gradle -type f -print -quit)")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        run: cd "$PROJECT_DIR" && gradle assembleDebug
+
+      - name: Save APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Doinik-Khoroch-Khata-APK
+          path: source/**/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
