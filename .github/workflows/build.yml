@@ -60,6 +60,8 @@ jobs:
         run: |
           set -e
           test -n "$ANDROID_KEYSTORE_BASE64"
+          KEY_LENGTH=$(printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '[:space:]' | wc -c)
+          echo "Keystore Base64 character count: $KEY_LENGTH"
           mkdir -p "$RUNNER_TEMP/signing"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$RUNNER_TEMP/signing/release.jks"
           test -s "$RUNNER_TEMP/signing/release.jks"
