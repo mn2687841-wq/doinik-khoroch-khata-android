@@ -29,6 +29,22 @@ jobs:
           PROJECT_DIR="$(dirname "$(find source -name settings.gradle -type f -print -quit)")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
+      - name: Fix Android print button
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          p = Path(os.environ["PROJECT_DIR"]) / "app/src/main/assets/index.html"
+          s = p.read_text(encoding="utf-8")
+          old = "$('print').addEventListener('click',()=>window.print());"
+          new = """$('print').addEventListener('click',()=>{if(window.AndroidApp&&typeof AndroidApp.printPage==='function'){AndroidApp.printPage()}else{window.print()}});"""
+          if old not in s:
+              raise SystemExit("Print button code not found")
+          p.write_text(s.replace(old, new, 1), encoding="utf-8")
+          print("Print button fixed")
+          PY
+
       - name: Build APK
         run: cd "$PROJECT_DIR" && gradle assembleDebug
 
