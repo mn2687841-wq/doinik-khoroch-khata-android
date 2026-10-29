@@ -28,9 +28,28 @@ jobs:
 
       - name: Extract project
         run: |
-          mkdir source
-          unzip -q Doinik_Khoroch_Khata_Update_Feature_v1.zip -d source
+          set -e
+          mkdir -p source
+
+          ZIP_FILE="$(find . -type f -name 'Doinik_Khoroch_Khata_Update_Feature_v1.zip' -print -quit)"
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: Update Feature ZIP file was not found."
+            echo "Available ZIP files:"
+            find . -type f -iname '*.zip' -print
+            exit 1
+          fi
+
+          echo "Found ZIP: $ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d source
+
           PROJECT_DIR="$(dirname "$(find source -name settings.gradle -type f -print -quit)")"
+
+          if [ -z "$PROJECT_DIR" ] || [ "$PROJECT_DIR" = "." ]; then
+            echo "ERROR: Android project settings.gradle was not found."
+            exit 1
+          fi
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Fix Android print button
