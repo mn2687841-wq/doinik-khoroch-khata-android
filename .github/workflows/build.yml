@@ -31,8 +31,7 @@ jobs:
           set -e
           mkdir -p source
 
-          ZIP_FILE="$(find . -type f -name 'Doinik_Khoroch_Khata_Update_Feature_v1.zip' -print -quit)"
-
+          ZIP_FILE="$(find . -type f -name 'Doinik_Khoroch_Khata_Update_Feature_v1*.zip' -print -quit)"
           if [ -z "$ZIP_FILE" ]; then
             echo "ERROR: Update Feature ZIP file was not found."
             echo "Available ZIP files:"
