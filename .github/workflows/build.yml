@@ -1,111 +1,116 @@
 name: Build Daily Expense APK
+on: push: workflow_dispatch:
+permissions: contents: read
+jobs: build: runs-on: ubuntu-latest
+steps:
+  - name: Checkout
+    uses: actions/checkout@v4
 
-on:
-  push:
-  workflow_dispatch:
-  
-permissions:
-  contents: read
+  - name: Setup Java
+    uses: actions/setup-java@v4
+    with:
+      distribution: temurin
+      java-version: '21'
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+  - name: Setup Gradle
+    uses: gradle/actions/setup-gradle@v4
+    with:
+      gradle-version: '8.10.2'
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  - name: Extract project
+    run: |
+      set -e
+      mkdir -p source
+      ZIP_FILE="./Doinik_Khoroch_Khata_Updater_Project_v1-2-1.zip"
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
+      if [ ! -f "$ZIP_FILE" ]; then
+        echo "ERROR: Required ZIP file not found: $ZIP_FILE"
+        find . -type f -iname '*.zip' -print
+        exit 1
+      fi
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.10.2'
+      unzip -q "$ZIP_FILE" -d source
+      PROJECT_DIR="$(dirname "$(find source -name settings.gradle -type f -print -quit)")"
 
-      - name: Extract project
-        run: |
-          set -e
-          mkdir -p source
+      if [ -z "$PROJECT_DIR" ] || [ "$PROJECT_DIR" = "." ]; then
+        echo "ERROR: Android project settings.gradle was not found."
+        exit 1
+      fi
 
-          ZIP_FILE="./Doinik_Khoroch_Khata_Updater_Project_v1-2-1.zip"
+      echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-          if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Required ZIP file not found: $ZIP_FILE"
-            echo "Available ZIP files:"
-            find . -type f -iname '*.zip' -print
-            exit 1
-          fi
+  - name: Enable BuildConfig
+    run: |
+      python3 - <<'PY'
+      import os
+      from pathlib import Path
 
-          echo "Using ZIP: $ZIP_FILE"
-          unzip -q "$ZIP_FILE" -d source
+      p = Path(os.environ["PROJECT_DIR"]) / "app/build.gradle"
+      s = p.read_text(encoding="utf-8")
 
-          PROJECT_DIR="$(dirname "$(find source -name settings.gradle -type f -print -quit)")"
+      if "buildConfig true" not in s:
+          s = s.replace(
+              "android {",
+              "android {\n    buildFeatures {\n        buildConfig true\n    }\n",
+              1
+          )
+          p.write_text(s, encoding="utf-8")
 
-          if [ -z "$PROJECT_DIR" ] || [ "$PROJECT_DIR" = "." ]; then
-            echo "ERROR: Android project settings.gradle was not found."
-            exit 1
-          fi
+      print("BuildConfig enabled")
+      PY
 
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+  - name: Fix Android print button
+    run: |
+      python3 - <<'PY'
+      import os
+      from pathlib import Path
 
-      - name: Fix Android print button
-        run: |
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
+      p = Path(os.environ["PROJECT_DIR"]) / "app/src/main/assets/index.html"
+      s = p.read_text(encoding="utf-8")
 
-          p = Path(os.environ["PROJECT_DIR"]) / "app/src/main/assets/index.html"
-          s = p.read_text(encoding="utf-8")
+      old = "$('print').addEventListener('click',()=>window.print());"
+      new = """$('print').addEventListener('click',()=>{if(window.AndroidApp&&typeof AndroidApp.printPage==='function'){AndroidApp.printPage()}else{window.print()}});"""
 
-          old = "$('print').addEventListener('click',()=>window.print());"
-          new = """$('print').addEventListener('click',()=>{if(window.AndroidApp&&typeof AndroidApp.printPage==='function'){AndroidApp.printPage()}else{window.print()}});"""
+      if new in s:
+          print("Print button already fixed")
+      elif old in s:
+          p.write_text(s.replace(old, new, 1), encoding="utf-8")
+          print("Print button fixed")
+      else:
+          raise SystemExit("Print button code not found")
+      PY
 
-          if new in s:
-              print("Print button already fixed")
-          elif old in s:
-              p.write_text(s.replace(old, new, 1), encoding="utf-8")
-              print("Print button fixed")
-          else:
-              raise SystemExit("Print button code not found")
-          PY
+  - name: Prepare release signing key
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+    run: |
+      set -e
+      test -n "$ANDROID_KEYSTORE_BASE64"
+      mkdir -p "$RUNNER_TEMP/signing"
+      printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$RUNNER_TEMP/signing/release.jks"
+      test -s "$RUNNER_TEMP/signing/release.jks"
+      echo "Signing key decoded successfully"
 
-      - name: Prepare release signing key
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: |
-          set -e
-          test -n "$ANDROID_KEYSTORE_BASE64"
-          KEY_LENGTH=$(printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '[:space:]' | wc -c)
-          echo "Keystore Base64 character count: $KEY_LENGTH"
-          mkdir -p "$RUNNER_TEMP/signing"
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$RUNNER_TEMP/signing/release.jks"
-          test -s "$RUNNER_TEMP/signing/release.jks"
-          echo "Signing key decoded successfully"
+  - name: Build signed APK
+    env:
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    run: |
+      set -e
+      test -n "$ANDROID_KEYSTORE_PASSWORD"
+      test -n "$ANDROID_KEY_ALIAS"
+      test -n "$ANDROID_KEY_PASSWORD"
+      cd "$PROJECT_DIR"
+      gradle assembleRelease \
+        -Pandroid.injected.signing.store.file="$RUNNER_TEMP/signing/release.jks" \
+        -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+        -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+        -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
 
-      - name: Build signed APK
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -e
-          test -n "$ANDROID_KEYSTORE_PASSWORD"
-          test -n "$ANDROID_KEY_ALIAS"
-          test -n "$ANDROID_KEY_PASSWORD"
-          cd "$PROJECT_DIR"
-          gradle assembleRelease \
-            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/signing/release.jks" \
-            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
-            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
-            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
-
-      - name: Save APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Doinik-Khoroch-Khata-APK
-          path: source/**/app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
+  - name: Save APK
+    uses: actions/upload-artifact@v4
+    with:
+      name: Doinik-Khoroch-Khata-APK
+      path: source/**/app/build/outputs/apk/release/app-release.apk
+      if-no-files-found: error
