@@ -3,7 +3,7 @@ name: Build Daily Expense APK
 on:
   push:
   workflow_dispatch:
-
+  
 permissions:
   contents: read
 
