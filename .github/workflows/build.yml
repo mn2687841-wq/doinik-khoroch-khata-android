@@ -100,6 +100,18 @@ jobs:
           test -s "$RUNNER_TEMP/signing/release.jks"
           echo "Signing key decoded successfully"
 
+      - name: Show Release SHA Fingerprints
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -e
+          keytool -list -v \
+            -keystore "$RUNNER_TEMP/signing/release.jks" \
+            -alias "$ANDROID_KEY_ALIAS" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+            | grep -E 'SHA1:|SHA256:'
+
       - name: Build signed APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
