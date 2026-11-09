@@ -30,7 +30,7 @@ jobs:
         run: |
           set -e
           mkdir -p source
-          ZIP_FILE="./Doinik_Khoroch_Khata_v1-5-1_Official_Expenses_Redesign.zip"
+          ZIP_FILE="./Doinik_Khoroch_Khata_v1-5-2_Official_Expenses_Report.zip"
 
           if [ ! -f "$ZIP_FILE" ]; then
             echo "ERROR: Required ZIP file not found: $ZIP_FILE"
